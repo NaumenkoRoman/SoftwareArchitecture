@@ -1,0 +1,1 @@
+docker run --network hazelcast-network -p 8080:8080 hazelcast/management-center:latest-snapshot
