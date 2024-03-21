@@ -1,2 +1,1 @@
 hazelcast-python-client
-PyQt6
