@@ -1,0 +1,63 @@
+version: '3'
+services:
+  hazelcast1:
+    image: hazelcast/hazelcast:latest
+    ports:
+      - "5701:5701"
+    networks:
+      - hazelcast-net
+
+  hazelcast2:
+    image: hazelcast/hazelcast:latest
+    ports:
+      - "5702:5701"
+    networks:
+      - hazelcast-net
+
+  hazelcast3:
+    image: hazelcast/hazelcast:latest
+    ports:
+      - "5703:5701"
+    networks:
+      - hazelcast-net
+
+  logging_service1:
+    build: ./logging_service
+    ports:
+      - "8001:8000"
+    environment:
+      - HZ_HOST=hazelcast1
+    networks:
+      - hazelcast-net
+
+  logging_service2:
+    build: ./logging_service
+    ports:
+      - "8002:8000"
+    environment:
+      - HZ_HOST=hazelcast2
+    networks:
+      - hazelcast-net
+
+  logging_service3:
+    build: ./logging_service
+    ports:
+      - "8003:8000"
+    environment:
+      - HZ_HOST=hazelcast3
+    networks:
+      - hazelcast-net
+
+  facade_service:
+    build: ./facade_service
+    ports:
+      - "8000:8000"
+    depends_on:
+      - logging_service1
+      - logging_service2
+      - logging_service3
+    networks:
+      - hazelcast-net
+
+networks:
+  hazelcast-net:
