@@ -1,23 +1,31 @@
 version: '3'
 services:
   hazelcast1:
-    image: hazelcast/hazelcast:latest
+    image: hazelcast/hazelcast:5.0.3
     ports:
       - "5701:5701"
     networks:
       - hazelcast-net
 
   hazelcast2:
-    image: hazelcast/hazelcast:latest
+    image: hazelcast/hazelcast:5.0.3
     ports:
       - "5702:5701"
     networks:
       - hazelcast-net
 
   hazelcast3:
-    image: hazelcast/hazelcast:latest
+    image: hazelcast/hazelcast:5.0.3
     ports:
       - "5703:5701"
+    networks:
+      - hazelcast-net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     networks:
       - hazelcast-net
 
@@ -56,6 +64,25 @@ services:
       - logging_service1
       - logging_service2
       - logging_service3
+      - rabbitmq
+    networks:
+      - hazelcast-net
+
+  messages_service1:
+    build: ./messages_service
+    ports:
+      - "8004:8000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    networks:
+      - hazelcast-net
+
+  messages_service2:
+    build: ./messages_service
+    ports:
+      - "8005:8000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
     networks:
       - hazelcast-net
 
