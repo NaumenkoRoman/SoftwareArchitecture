@@ -41,39 +41,43 @@ services:
 
   logging_service1:
     build: ./logging_service
+    container_name: logging_service1
     ports:
       - "8001:8000"
     environment:
       - CONSUL_HOST=consul
-      - SERVICE_NAME=logging-service
-      - SERVICE_PORT=8001
+      - SERVICE_NAME=logging-service1
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 
   logging_service2:
     build: ./logging_service
+    container_name: logging_service2
     ports:
       - "8002:8000"
     environment:
       - CONSUL_HOST=consul
-      - SERVICE_NAME=logging-service
-      - SERVICE_PORT=8002
+      - SERVICE_NAME=logging-service2
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 
   logging_service3:
     build: ./logging_service
+    container_name: logging_service3
     ports:
       - "8003:8000"
     environment:
       - CONSUL_HOST=consul
-      - SERVICE_NAME=logging-service
-      - SERVICE_PORT=8003
+      - SERVICE_NAME=logging-service3
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 
   facade_service:
     build: ./facade_service
+    container_name: facade_service
     ports:
       - "8000:8000"
     depends_on:
@@ -91,23 +95,25 @@ services:
 
   messages_service1:
     build: ./messages_service
+    container_name: messages_service1
     ports:
       - "8004:8000"
     environment:
       - CONSUL_HOST=consul
-      - SERVICE_NAME=messages-service
-      - SERVICE_PORT=8004
+      - SERVICE_NAME=messages-service1
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 
   messages_service2:
     build: ./messages_service
+    container_name: messages_service2
     ports:
       - "8005:8000"
     environment:
       - CONSUL_HOST=consul
-      - SERVICE_NAME=messages-service
-      - SERVICE_PORT=8005
+      - SERVICE_NAME=messages-service2
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 

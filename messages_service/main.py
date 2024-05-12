@@ -10,9 +10,10 @@ app = FastAPI()
 
 messages = []
 
+consul_host = os.getenv("CONSUL_HOST", "consul")
+consul_client = consul.Consul(host=consul_host)
+
 def get_consul_config(key):
-    consul_host = os.getenv("CONSUL_HOST", "consul")
-    consul_client = consul.Consul(host=consul_host)
     index, data = consul_client.kv.get(key)
     if data is None:
         raise Exception(f"Key {key} not found in Consul")
@@ -34,7 +35,6 @@ def connect_to_rabbitmq():
             ))
             channel = connection.channel()
             channel.queue_declare(queue=rabbitmq_queue)
-            print("[MESSAGING] INFO: Connected to RabbitMQ")
             return connection, channel, rabbitmq_queue
         except pika.exceptions.AMQPConnectionError as e:
             if attempt < max_retries - 1:
@@ -45,9 +45,10 @@ def connect_to_rabbitmq():
                 print("[MESSAGING] ERROR: Failed to connect to RabbitMQ after several attempts.")
                 raise e
 
-print(f"[MESSAGING] INFO: Connecting to RabbitMQ...", flush=True, end="")
+print(f"[MESSAGING] INFO: Connecting to RabbitMQ...", flush=True)
 connection, channel, rabbitmq_queue = connect_to_rabbitmq()
-print(" Connected!")
+print(f"[MESSAGING] INFO: Connected to RabbitMQ!", flush=True)
+
 
 def callback(ch, method, properties, body):
     print(f"Received message: {body.decode()}")

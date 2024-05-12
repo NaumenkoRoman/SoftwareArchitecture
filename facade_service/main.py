@@ -23,10 +23,11 @@ def get_service(service_name):
     if not healthy_services:
         raise Exception(f"No healthy {service_name} instances found")
     service = random.choice(healthy_services)
-    print(f"[FACADE] INFO: Selected service: {service}")
     address = service['Service']['Address']
     port = service['Service']['Port']
+    print(f"Retrieved {service_name} address: http://{address}:{port}")
     return f"http://{address}:{port}"
+
 
 def get_consul_config(key):
     index, data = consul_client.kv.get(key)
@@ -50,15 +51,15 @@ def connect_to_rabbitmq():
             ))
             channel = connection.channel()
             channel.queue_declare(queue=rabbitmq_queue)
-            print("[MESSAGING] INFO: Connected to RabbitMQ")
+            print("[FACADE] INFO: Connected to RabbitMQ")
             return connection, channel, rabbitmq_queue
         except pika.exceptions.AMQPConnectionError as e:
             if attempt < max_retries - 1:
-                print(f"[MESSAGING] INFO: Connection failed, retrying in {wait_time} seconds...")
+                print(f"[FACADE] INFO: Connection failed, retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
                 wait_time *= 2
             else:
-                print("[MESSAGING] ERROR: Failed to connect to RabbitMQ after several attempts.")
+                print("[FACADE] ERROR: Failed to connect to RabbitMQ after several attempts.")
                 raise e
 
 print(f"[FACADE] INFO: Connecting to RabbitMQ...", flush=True, end="")
@@ -79,6 +80,7 @@ async def log_message(message: Message):
                               body=message.msg)
         return response.json()
     except Exception as e:
+        print(f"[FACADE] ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/logs")
@@ -99,4 +101,5 @@ async def get_messages():
         all_messages = logging_messages + messages
         return {"messages": all_messages}
     except Exception as e:
+        print(f"[FACADE] ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
