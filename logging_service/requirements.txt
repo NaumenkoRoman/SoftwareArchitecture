@@ -1,3 +1,4 @@
 fastapi
 uvicorn
 hazelcast-python-client
+python-consul

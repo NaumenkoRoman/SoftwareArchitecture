@@ -3,82 +3,100 @@ from pydantic import BaseModel
 import random
 import httpx
 import pika
+import consul
+import os
 import time
 
 class Message(BaseModel):
     msg: str
 
+print(f"[FACADE] INFO: Starting FastAPI app...", flush=True, end="")
 app = FastAPI()
+print(" Started!")
 
-logging_services = [
-    "http://logging_service1:8000",
-    "http://logging_service2:8000",
-    "http://logging_service3:8000"
-]
+consul_host = os.getenv("CONSUL_HOST", "consul")
+consul_client = consul.Consul(host=consul_host)
 
-messages_services = [
-    "http://messages_service1:8000",
-    "http://messages_service2:8000"
-]
+def get_service(service_name):
+    services = consul_client.health.service(service_name)[1]
+    healthy_services = [service for service in services if service['Checks'][0]['Status'] == 'passing']
+    if not healthy_services:
+        raise Exception(f"No healthy {service_name} instances found")
+    service = random.choice(healthy_services)
+    print(f"[FACADE] INFO: Selected service: {service}")
+    address = service['Service']['Address']
+    port = service['Service']['Port']
+    return f"http://{address}:{port}"
+
+def get_consul_config(key):
+    index, data = consul_client.kv.get(key)
+    if data is None:
+        raise Exception(f"Key {key} not found in Consul")
+    return data['Value'].decode()
 
 def connect_to_rabbitmq():
     max_retries = 10
-    wait_time = 1 
+    wait_time = 1
+
+    rabbitmq_host = get_consul_config("rabbitmq/host")
+    rabbitmq_queue = get_consul_config("rabbitmq/queue")
 
     for attempt in range(max_retries):
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+            connection = pika.BlockingConnection(pika.ConnectionParameters(
+                host=rabbitmq_host,
+                heartbeat=600,
+                blocked_connection_timeout=300
+            ))
             channel = connection.channel()
-            channel.queue_declare(queue='message_queue')
-            print("Connected to RabbitMQ!")
-            break
+            channel.queue_declare(queue=rabbitmq_queue)
+            print("[MESSAGING] INFO: Connected to RabbitMQ")
+            return connection, channel, rabbitmq_queue
         except pika.exceptions.AMQPConnectionError as e:
             if attempt < max_retries - 1:
-                print(f"Connection failed, retrying in {wait_time} seconds...")
+                print(f"[MESSAGING] INFO: Connection failed, retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
-                wait_time *= 2 
+                wait_time *= 2
             else:
-                print("Failed to connect to RabbitMQ after several attempts.")
+                print("[MESSAGING] ERROR: Failed to connect to RabbitMQ after several attempts.")
                 raise e
-    return connection, channel
 
-connection, channel = connect_to_rabbitmq()
+print(f"[FACADE] INFO: Connecting to RabbitMQ...", flush=True, end="")
+connection, channel, rabbitmq_queue = connect_to_rabbitmq()
+print(" Connected!")
 
 @app.post("/log")
 async def log_message(message: Message):
     try:
-        service_url = random.choice(logging_services)
+        logging_service_url = get_service("logging-service")
+        print(f"[FACADE] INFO: Logging mst to: {logging_service_url}")
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{service_url}/log", json=message.dict())
+            response = await client.post(f"{logging_service_url}/log", json=message.dict())
             response.raise_for_status()
 
         channel.basic_publish(exchange='',
-                              routing_key='message_queue',
+                              routing_key=rabbitmq_queue,
                               body=message.msg)
-
         return response.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/logs")
 async def get_messages():
     try:
-        service_url = random.choice(logging_services)
+        logging_service_url = get_service("logging-service")
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{service_url}/logs")
+            response = await client.get(f"{logging_service_url}/logs")
             response.raise_for_status()
         logging_messages = response.json()["messages"]
 
-        service_url = random.choice(messages_services)
+        messages_service_url = get_service("messages-service")
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{service_url}/messages")
+            response = await client.get(f"{messages_service_url}/messages")
             response.raise_for_status()
         messages = response.json()["messages"]
 
-        return {"messages": messages, "logging_messages": logging_messages}
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        all_messages = logging_messages + messages
+        return {"messages": all_messages}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

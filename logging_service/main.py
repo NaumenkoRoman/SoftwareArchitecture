@@ -1,28 +1,38 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import hazelcast
+import consul
 import os
 
 class Message(BaseModel):
     msg: str
 
-app = FastAPI()
+def get_consul_config(key):
+    consul_host = os.getenv("CONSUL_HOST", "consul")
+    consul_client = consul.Consul(host=consul_host)
+    index, data = consul_client.kv.get(key)
+    if data is None:
+        raise Exception(f"Key {key} not found in Consul")
+    return data['Value'].decode()
 
-hz_host = os.getenv("HZ_HOST", "localhost")
-hz = hazelcast.HazelcastClient(
-    cluster_members=[f"{hz_host}:5701"]
-)
-distributed_map = hz.get_map("distributed-map").blocking()
+print(f"[LOGGING] INFO: Starting FastAPI app...", flush=True, end="")
+app = FastAPI()
+print(" Started!")
+
+print(f"[LOGGING] INFO: Connecting to Hazelcast...", flush=True, end="")
+hz_config = get_consul_config("hazelcast/config")
+hz = hazelcast.HazelcastClient(cluster_name=hz_config)
+distributed_map = hz.get_map("default").blocking()
+print(" Connected!")
 
 @app.post("/log")
 def log_message(message: Message):
     try:
         distributed_map.put(message.msg, message.msg)
-        print(f"Logged: {message.msg}")
         return {"message": f"Logged: {message.msg}"}
     except Exception as e:
-        print(f"Error logging message: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        print(f"[LOGGING] ERROR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/logs")
 def get_messages():
@@ -30,5 +40,4 @@ def get_messages():
         messages = distributed_map.values()
         return {"messages": list(messages)}
     except Exception as e:
-        print(f"Error fetching messages: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=str(e))

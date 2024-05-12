@@ -1,5 +1,15 @@
 version: '3'
 services:
+  consul:
+    image: consul:1.12.3
+    container_name: consul-server
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: "agent -dev -client=0.0.0.0"
+    networks:
+      - hazelcast-net
+
   hazelcast1:
     image: hazelcast/hazelcast:5.0.3
     ports:
@@ -34,7 +44,9 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - HZ_HOST=hazelcast1
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=logging-service
+      - SERVICE_PORT=8001
     networks:
       - hazelcast-net
 
@@ -43,7 +55,9 @@ services:
     ports:
       - "8002:8000"
     environment:
-      - HZ_HOST=hazelcast2
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=logging-service
+      - SERVICE_PORT=8002
     networks:
       - hazelcast-net
 
@@ -52,7 +66,9 @@ services:
     ports:
       - "8003:8000"
     environment:
-      - HZ_HOST=hazelcast3
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=logging-service
+      - SERVICE_PORT=8003
     networks:
       - hazelcast-net
 
@@ -65,6 +81,11 @@ services:
       - logging_service2
       - logging_service3
       - rabbitmq
+      - consul
+    environment:
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=facade-service
+      - SERVICE_PORT=8000
     networks:
       - hazelcast-net
 
@@ -73,7 +94,9 @@ services:
     ports:
       - "8004:8000"
     environment:
-      - RABBITMQ_HOST=rabbitmq
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=messages-service
+      - SERVICE_PORT=8004
     networks:
       - hazelcast-net
 
@@ -82,7 +105,9 @@ services:
     ports:
       - "8005:8000"
     environment:
-      - RABBITMQ_HOST=rabbitmq
+      - CONSUL_HOST=consul
+      - SERVICE_NAME=messages-service
+      - SERVICE_PORT=8005
     networks:
       - hazelcast-net
 
